@@ -101,6 +101,9 @@ class ClusterModel:
 class AttackPath:
     nodes: list[str]
     score: float
+    relations: list[str] = field(default_factory=list)
+    headline: str = ""
+    evidence: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -111,6 +114,7 @@ class RemediationAction:
     cost: int
     impact: int
     action_type: str
+    relation: str = ""
     target_nodes: list[str] = field(default_factory=list)
     target_edges: list[tuple[str, str]] = field(default_factory=list)
     rationale: str = ""

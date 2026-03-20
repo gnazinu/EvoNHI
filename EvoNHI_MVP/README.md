@@ -1,260 +1,117 @@
 # EvoNHI
 
-**GitHub repo description:**
-SaaS platform for reducing non-human identity attack paths in Kubernetes through budget-aware, production-safe remediation planning.
+EvoNHI is a security decision platform for reducing Kubernetes non-human identity attack paths.
 
----
+The project focuses on a hard practical question:
 
-# EvoNHI
+**which few changes should a team make first to reduce reachable paths to crown jewels without blowing the budget or causing reckless operational impact?**
 
-EvoNHI is a SaaS-first cybersecurity platform focused on **non-human identities** in cloud-native environments, especially Kubernetes.
+## What the project does today
 
-Its goal is simple:
+This repository now ships a more production-minded MVP with:
 
-**help teams decide which security changes should be made first to reduce real attack paths to critical assets, without overspending and without breaking production.**
-
----
-
-## Why EvoNHI exists
-
-Modern systems depend on many automatic identities and credentials:
-
-- service accounts
-- tokens
-- secrets
-- RBAC permissions
-- workload-to-workload trust
-- automated pipelines and background jobs
-
-These pieces often create hidden paths that an attacker can use to move through the environment and reach important assets.
-
-Most tools can show exposure or misconfigurations.
-Few tools answer the harder question:
-
-**What should we change first to reduce the most risk with the least operational damage?**
-
-That is the problem EvoNHI is built to solve.
-
----
-
-## What EvoNHI does
-
-EvoNHI analyzes a Kubernetes-like environment, builds an attack graph around non-human identities, and generates **prioritized remediation plans**.
-
-In simple terms, it does five things:
-
-1. reads the environment structure
-2. identifies attack paths to crown jewels
-3. proposes possible security changes
-4. compares different defensive plans
-5. recommends the best options under cost and operational constraints
-
-Instead of just saying **"there is a risk here"**, EvoNHI tries to answer:
-
-- what change should happen first
-- what change reduces the most risk
-- what fits the available budget
-- what is less likely to break production
-
----
-
-## Core idea
-
-EvoNHI is **not** just another scanner.
-It is a **defense optimization system**.
-
-The core thesis is:
-
-> Security for non-human identities should not stop at detection. It should help teams choose the best remediation strategy under real-world constraints.
-
-That means the platform is designed around:
-
-- **real attack paths**, not isolated findings
-- **critical assets**, not generic risk scores
-- **remediation planning**, not only visibility
-- **budget-aware decisions**, not idealized security
-- **production-safe changes**, not blind hardening
-
----
-
-## Who this is for
-
-EvoNHI is useful for teams that operate Kubernetes or cloud-native systems and need better security decisions around machine identities.
-
-Examples:
-
-- platform security teams
-- DevSecOps teams
-- cloud security engineers
-- infrastructure teams
-- SaaS companies with multiple workloads and service accounts
-- organizations that want clearer remediation priorities
-
----
-
-## Product direction
-
-This repository represents a **SaaS-first MVP**.
-
-The long-term product direction is a multi-tenant platform where customers can:
-
-- onboard environments
-- define crown jewels
-- run repeatable analyses
-- compare analysis history
-- review remediation plans
-- justify security work with clearer evidence and trade-offs
-
-The current MVP already follows that product shape.
-
----
-
-## Current MVP scope
-
-### Included
-
-- SaaS-style data model
-- tenants, workspaces, and environments
-- crown jewel registration
-- manifest-based environment onboarding
-- attack graph construction
-- attack path analysis
-- remediation option generation
-- multi-objective optimization
+- tenant, workspace and environment data model
+- manifest-based environment onboarding with path hardening
+- attack-graph construction for service accounts, RBAC, mounted secrets and public workloads
+- bounded attack-path discovery with human-readable evidence
+- remediation planning with budget-aware optimization
 - persistent analysis runs and remediation plans
-- REST API with FastAPI
+- optional API-key protection for API and dashboards
+- executive HTML dashboard for non-coders
+- API endpoints for technical users and automation
 
-### Not included yet
+## What changed in this refactor
+
+The project was upgraded in the areas that matter most for credibility:
+
+- the graph builder no longer mixes unrelated RBAC resources and verbs into fake paths
+- permission scope now follows binding scope more closely, which is much closer to real Kubernetes behavior
+- analysis results now include explainable attack stories and executive summaries
+- remediation plans store rich action metadata instead of opaque IDs
+- onboarding validates parents, duplicate data and manifest path boundaries
+- the app can be protected with `EVONHI_API_KEY`
+- a visual dashboard was added at `/dashboard/runs/{run_id}` plus a control-center home page at `/`
+- tests now cover semantic correctness and report generation, not just happy-path existence
+
+## Honest scope
+
+The current engine is strong enough to be useful as a serious demo and internal planning tool, but it is still not pretending to solve every Kubernetes attack vector.
+
+Modeled well right now:
+
+- public workload entry points
+- service-account token inheritance
+- RBAC secret reads
+- mounted secret exposure
+- workload mutation pivots via RBAC
+
+Not fully modeled yet:
 
 - real cluster connectors
-- live telemetry
-- runtime detection
-- authentication and user roles
-- billing
-- notifications
-- background workers
-- web frontend
-- audit trail
+- runtime telemetry
+- user auth and RBAC beyond API-key protection
+- asynchronous workers
+- billing, notifications and audit trails
+- full network-policy semantics
 
----
-
-## How the MVP works
-
-### 1. Environment intake
-The system receives Kubernetes manifests and reads objects such as:
-
-- namespaces
-- service accounts
-- roles and role bindings
-- secrets
-- workloads
-- network policies
-
-### 2. Graph modeling
-It converts the environment into a graph that represents:
-
-- identities
-- permissions
-- credentials
-- trust relationships
-- possible movement paths
-
-### 3. Crown jewel targeting
-The customer defines which assets matter most.
-These are the crown jewels the system tries to protect first.
-
-### 4. Attack path discovery
-The engine finds paths that could let an attacker move from exposed or weak points toward those crown jewels.
-
-### 5. Remediation generation
-The system creates candidate defensive actions, such as:
-
-- removing unnecessary permissions
-- restricting service accounts
-- protecting or isolating secrets
-- reducing access to sensitive resources
-- limiting exposure paths
-
-### 6. Optimization
-Instead of choosing changes one by one, EvoNHI compares many possible remediation plans and tries to optimize for:
-
-- lower attack-path exposure
-- lower cost
-- lower operational impact
-- better defensive coverage
-
----
-
-## Why this approach matters
-
-Security teams usually face three real constraints:
-
-- they cannot fix everything at once
-- they cannot break production
-- they need to justify priorities
-
-EvoNHI is designed around those constraints from the start.
-
-That is why the platform is centered on **decision quality**, not just detection volume.
-
----
-
-## High-level architecture
-
-The MVP uses a layered architecture.
+## Architecture
 
 ### API layer
-FastAPI exposes product endpoints for tenants, workspaces, environments, crown jewels, and analysis runs.
+
+FastAPI exposes resource management, analysis execution and executive summary endpoints.
 
 ### Application layer
-Service modules handle onboarding, analysis orchestration, and persistence of results.
+
+Service modules validate onboarding, orchestrate analyses and build audience-specific summaries.
 
 ### Analysis engine
-The engine loads manifests, builds the graph, identifies attack paths, generates remediation options, and runs optimization.
+
+The engine:
+
+1. loads Kubernetes manifests
+2. builds an attack graph with scoped permissions
+3. finds bounded high-signal paths to crown jewels
+4. generates remediation actions
+5. optimizes plans under budget and operational impact constraints
+
+### Presentation layer
+
+A server-rendered HTML dashboard translates technical findings into a business-readable story.
 
 ### Persistence layer
-SQLite stores product entities and analysis output in a SaaS-like structure.
 
----
+SQLAlchemy stores tenants, workspaces, environments, crown jewels, analysis runs and remediation plans in SQLite by default.
 
 ## Tech stack
 
-- **Python** — core application and analysis engine
-- **FastAPI** — API layer
-- **SQLAlchemy** — persistence model
-- **SQLite** — default database for the MVP
-- **NetworkX** — graph modeling and path analysis
-- **pymoo** — multi-objective evolutionary optimization
-- **Pydantic** — request and response schemas
-- **Uvicorn** — local API server
-
----
+- Python
+- FastAPI
+- SQLAlchemy
+- SQLite
+- Pydantic v2
+- NetworkX
+- PyYAML
+- Uvicorn
 
 ## Repository structure
 
 ```text
 app/
-  api/          # API routes
-  services/     # product orchestration
-  engine/       # graph, path, remediation, optimization logic
-  domain/       # analysis models
-  models.py     # SaaS database entities
-  schemas.py    # API schemas
+  api/          # REST endpoints
+  services/     # onboarding, reporting, analysis orchestration
+  engine/       # graph, path, remediation and optimization logic
+  domain/       # analysis dataclasses
+  ui/           # HTML dashboard rendering
   main.py       # FastAPI entrypoint
 
 data/demo/
-  manifests/    # reproducible demo scenario
-
-docs/
-  ARCHITECTURE.md
-  WHY_SAAS.md
-  PROJECT_SOUL.md
+  manifests/    # reproducible Kubernetes-like demo bundle
 
 tests/
   test_engine.py
+  test_engine_semantics.py
+  test_onboarding_analysis.py
 ```
-
----
 
 ## Quick start
 
@@ -271,90 +128,58 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Run the API
+### 3. Optional: protect the API and dashboards
+
+```bash
+export EVONHI_API_KEY="change-me"
+```
+
+When enabled, use either the `X-API-Key` header or `?api_key=...` in dashboard URLs.
+
+### 4. Seed demo data
+
+```bash
+python scripts/seed_demo.py
+```
+
+That script creates a demo tenant, runs an analysis and prints the dashboard URL.
+
+### 5. Run the API
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-### 4. Open the docs
+### 6. Open the product views
 
-Visit:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
+- Control center: `http://127.0.0.1:8000/`
+- Swagger docs: `http://127.0.0.1:8000/docs`
+- Dashboard example: `http://127.0.0.1:8000/dashboard/runs/1`
 
 ## Suggested demo flow
 
-1. create a tenant
-2. create a workspace
-3. register an environment
-4. add crown jewels
-5. trigger an analysis run
-6. inspect the remediation plans
+1. Create a tenant.
+2. Create a workspace.
+3. Register an environment with a manifest bundle under the configured manifest root.
+4. Add one or more crown jewels.
+5. Trigger an analysis run.
+6. Review the API output or open the executive dashboard.
 
----
+## Important API endpoints
+
+- `POST /api/v1/tenants`
+- `POST /api/v1/tenants/{tenant_id}/workspaces`
+- `POST /api/v1/workspaces/{workspace_id}/environments`
+- `POST /api/v1/environments/{environment_id}/crown-jewels`
+- `POST /api/v1/environments/{environment_id}/analysis-runs`
+- `GET /api/v1/analysis-runs/{run_id}`
+- `GET /api/v1/analysis-runs/{run_id}/executive-summary`
+- `GET /api/v1/tenants/{tenant_id}/dashboard`
 
 ## Example product promise
 
-EvoNHI does not try to be a full SOC or a general-purpose scanner.
+EvoNHI is not trying to be a generic scanner or a full SOC.
 
-Its value is more specific:
+Its value proposition is narrower and stronger:
 
-**turn non-human identity exposure into clear, prioritized, and production-aware remediation decisions.**
-
----
-
-## Long-term roadmap
-
-### Near term
-
-- improve remediation catalog
-- expand graph semantics
-- strengthen scoring for operational impact
-- add better demo scenarios
-- add asynchronous analysis jobs
-
-### Mid term
-
-- PostgreSQL support
-- authentication and RBAC
-- cluster connectors instead of local manifests
-- policy export and policy-as-code integrations
-- better visualization of attack paths and plans
-
-### Later
-
-- multi-cloud support
-- runtime signals
-- continuous drift analysis
-- team workflows and approvals
-- reporting for customers and leadership
-
----
-
-## Philosophy
-
-EvoNHI is built around a simple idea:
-
-**less noise, better decisions.**
-
-The goal is not to produce more alerts.
-The goal is to help teams reduce the most dangerous attack paths in the smartest possible way.
-
----
-
-## Status
-
-This repository is currently an **MVP / research-to-product foundation**.
-It is meant to validate the product direction, the analysis logic, and the optimization model before moving toward a more complete SaaS platform.
-
----
-
-## License
-
-Choose the license that fits your distribution strategy.
-For now, this section can be replaced with your preferred license once the repo is published.
+**turn non-human identity exposure into prioritized, explainable remediation decisions that both engineers and non-engineers can act on.**

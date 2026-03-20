@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import math
 import random
 from dataclasses import dataclass
@@ -16,7 +17,17 @@ class _Individual:
     evaluation: PlanEvaluation
 
 
-def _evaluate(genome: Sequence[int], graph, actions: Sequence[RemediationAction], baseline_paths: int, max_paths: int, budget: int | None) -> PlanEvaluation:
+EXACT_SEARCH_LIMIT = 14
+
+
+def _evaluate(
+    genome: Sequence[int],
+    graph,
+    actions: Sequence[RemediationAction],
+    baseline_paths: int,
+    max_paths: int,
+    budget: int | None,
+) -> PlanEvaluation:
     selected_actions = [action.action_id for bit, action in zip(genome, actions) if bit]
     total_cost = sum(action.cost for bit, action in zip(genome, actions) if bit)
     total_impact = sum(action.impact for bit, action in zip(genome, actions) if bit)
@@ -43,6 +54,17 @@ def _evaluate(genome: Sequence[int], graph, actions: Sequence[RemediationAction]
         operational_impact=total_impact,
         coverage_ratio=coverage,
     )
+
+
+def _seed_population(population_size: int, genome_length: int) -> list[list[int]]:
+    seeds: list[list[int]] = [[0] * genome_length]
+    for index in range(genome_length):
+        genome = [0] * genome_length
+        genome[index] = 1
+        seeds.append(genome)
+    while len(seeds) < population_size:
+        seeds.append([random.randint(0, 1) for _ in range(genome_length)])
+    return seeds[:population_size]
 
 
 def _dominates(a: PlanEvaluation, b: PlanEvaluation) -> bool:
@@ -132,16 +154,73 @@ def _mutate(genome: list[int], probability: float) -> list[int]:
     return clone
 
 
-def optimize_actions(graph, actions: Sequence[RemediationAction], max_paths: int, budget: int | None = None, population_size: int = 40, generations: int = 25, seed: int = 7) -> list[PlanEvaluation]:
+def _finalize(population: list[_Individual], budget: int | None) -> list[PlanEvaluation]:
+    feasible_population = [individual for individual in population if budget is None or individual.evaluation.cost <= budget]
+    source = feasible_population or population
+    final_fronts = _non_dominated_sort(source)
+    for front in final_fronts:
+        _crowding_distance(front)
+    best_front = sorted(
+        final_fronts[0],
+        key=lambda ind: (
+            ind.evaluation.remaining_paths,
+            ind.evaluation.cost,
+            ind.evaluation.operational_impact,
+            -ind.evaluation.coverage_ratio,
+            len(ind.evaluation.selected_actions),
+        ),
+    )
+
+    unique = []
+    seen = set()
+    for individual in best_front:
+        key = tuple(sorted(individual.evaluation.selected_actions))
+        if key not in seen:
+            seen.add(key)
+            unique.append(individual.evaluation)
+    return unique[:5]
+
+
+def _exact_search(
+    graph,
+    actions: Sequence[RemediationAction],
+    baseline_paths: int,
+    max_paths: int,
+    budget: int | None,
+) -> list[PlanEvaluation]:
+    population: list[_Individual] = []
+    for bits in itertools.product((0, 1), repeat=len(actions)):
+        if budget is not None:
+            total_cost = sum(action.cost for bit, action in zip(bits, actions) if bit)
+            if total_cost > budget:
+                continue
+        evaluation = _evaluate(bits, graph, actions, baseline_paths, max_paths, budget)
+        population.append(_Individual(genome=list(bits), evaluation=evaluation))
+    if not population:
+        population.append(_Individual(genome=[0] * len(actions), evaluation=_evaluate([0] * len(actions), graph, actions, baseline_paths, max_paths, budget)))
+    return _finalize(population, budget)
+
+
+def optimize_actions(
+    graph,
+    actions: Sequence[RemediationAction],
+    max_paths: int,
+    budget: int | None = None,
+    population_size: int = 40,
+    generations: int = 25,
+    seed: int = 7,
+) -> list[PlanEvaluation]:
     random.seed(seed)
     baseline_paths = len(find_attack_paths(graph, max_paths=max_paths))
     if not actions:
         return [PlanEvaluation([], baseline_paths, 0, 0, 0, 0.0)]
 
     genome_length = len(actions)
+    if genome_length <= EXACT_SEARCH_LIMIT:
+        return _exact_search(graph, actions, baseline_paths, max_paths, budget)
+
     population: list[_Individual] = []
-    for _ in range(population_size):
-        genome = [random.randint(0, 1) for _ in range(genome_length)]
+    for genome in _seed_population(population_size, genome_length):
         evaluation = _evaluate(genome, graph, actions, baseline_paths, max_paths, budget)
         population.append(_Individual(genome=genome, evaluation=evaluation))
 
@@ -175,16 +254,4 @@ def optimize_actions(graph, actions: Sequence[RemediationAction], max_paths: int
                 break
         population = new_population
 
-    final_fronts = _non_dominated_sort(population)
-    for front in final_fronts:
-        _crowding_distance(front)
-    best_front = sorted(final_fronts[0], key=lambda ind: (ind.evaluation.remaining_paths, ind.evaluation.cost, ind.evaluation.operational_impact, -ind.evaluation.coverage_ratio))
-
-    unique = []
-    seen = set()
-    for individual in best_front:
-        key = tuple(sorted(individual.evaluation.selected_actions))
-        if key not in seen:
-            seen.add(key)
-            unique.append(individual.evaluation)
-    return unique[:5]
+    return _finalize(population, budget)

@@ -29,8 +29,9 @@ def propose_remediation_actions(graph: nx.DiGraph) -> list[RemediationAction]:
                     cost=base_cost,
                     impact=base_impact,
                     action_type="node_removal",
+                    relation=relation,
                     target_nodes=[right],
-                    rationale="Removing the permission node is a simple MVP abstraction for cutting privilege edges.",
+                    rationale="Removing this permission cuts a concrete privilege edge that appears in reachable attack paths.",
                 ),
             )
 
@@ -45,8 +46,29 @@ def propose_remediation_actions(graph: nx.DiGraph) -> list[RemediationAction]:
                     cost=3,
                     impact=4,
                     action_type="edge_removal",
+                    relation=relation,
                     target_edges=[(left, right)],
                     rationale="Mounted secrets create a direct exposure path after workload compromise.",
+                ),
+            )
+
+        if relation == "uses_token" and left_attrs.get("kind") == "workload" and left_attrs.get("public"):
+            action_id = f"disable-token::{left}"
+            actions.setdefault(
+                action_id,
+                RemediationAction(
+                    action_id=action_id,
+                    title=f"Disable automounted token for public workload {left_attrs['name']}",
+                    description=(
+                        f"Reduce blast radius by preventing public workload {left_attrs['name']} "
+                        f"from automatically inheriting service account {right_attrs['name']}."
+                    ),
+                    cost=2,
+                    impact=3,
+                    action_type="edge_removal",
+                    relation=relation,
+                    target_edges=[(left, right)],
+                    rationale="Public workloads should not automatically inherit credentials unless strictly required.",
                 ),
             )
 
@@ -57,7 +79,9 @@ def apply_actions(graph: nx.DiGraph, actions: list[RemediationAction], selected_
     clone = graph.copy()
     action_index = {action.action_id: action for action in actions}
     for action_id in selected_action_ids:
-        action = action_index[action_id]
+        action = action_index.get(action_id)
+        if not action:
+            continue
         for node in action.target_nodes:
             if clone.has_node(node):
                 clone.remove_node(node)

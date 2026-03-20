@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,7 +10,7 @@ from app.db import Base
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class Tenant(Base, TimestampMixin):
@@ -50,6 +51,13 @@ class Environment(Base, TimestampMixin):
     workspace: Mapped[Workspace] = relationship(back_populates="environments")
     crown_jewels: Mapped[list[CrownJewel]] = relationship(back_populates="environment", cascade="all, delete-orphan")
     analysis_runs: Mapped[list[AnalysisRun]] = relationship(back_populates="environment", cascade="all, delete-orphan")
+
+    @property
+    def entry_workloads(self) -> list[str]:
+        try:
+            return json.loads(self.entry_workloads_json or "[]")
+        except json.JSONDecodeError:
+            return []
 
 
 class CrownJewel(Base, TimestampMixin):
