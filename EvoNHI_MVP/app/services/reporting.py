@@ -53,6 +53,7 @@ def serialize_action(action: RemediationAction) -> dict[str, Any]:
         "action_type": action.action_type,
         "relation": action.relation,
         "rationale": action.rationale,
+        "telemetry_confidence": action.telemetry_confidence,
     }
 
 

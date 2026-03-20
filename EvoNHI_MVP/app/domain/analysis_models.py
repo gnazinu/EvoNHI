@@ -112,12 +112,13 @@ class RemediationAction:
     title: str
     description: str
     cost: int
-    impact: int
+    impact: float
     action_type: str
     relation: str = ""
     target_nodes: list[str] = field(default_factory=list)
     target_edges: list[tuple[str, str]] = field(default_factory=list)
     rationale: str = ""
+    telemetry_confidence: float | None = None
 
 
 @dataclass(slots=True)
@@ -126,7 +127,7 @@ class PlanEvaluation:
     remaining_paths: int
     reduced_paths: int
     cost: int
-    operational_impact: int
+    operational_impact: float
     coverage_ratio: float
     rank: int = 0
     crowding_distance: float = 0.0

@@ -1,117 +1,127 @@
-# EvoNHI
+# EvoNHI Enterprise Control Plane
 
-EvoNHI is a security decision platform for reducing Kubernetes non-human identity attack paths.
+EvoNHI is a multi-tenant SaaS for reducing Kubernetes non-human identity attack paths with stronger isolation, async analysis execution and runtime-aware telemetry.
 
-The project focuses on a hard practical question:
+The project is now oriented around three enterprise realities:
 
-**which few changes should a team make first to reduce reachable paths to crown jewels without blowing the budget or causing reckless operational impact?**
+- customer data must be isolated per tenant
+- heavy graph and optimization work must run outside the web request path
+- operational impact must be informed by runtime telemetry, not only static YAML
 
-## What the project does today
+## What changed in this enterprise refactor
 
-This repository now ships a more production-minded MVP with:
+The platform now includes:
 
-- tenant, workspace and environment data model
-- manifest-based environment onboarding with path hardening
-- attack-graph construction for service accounts, RBAC, mounted secrets and public workloads
-- bounded attack-path discovery with human-readable evidence
-- remediation planning with budget-aware optimization
-- persistent analysis runs and remediation plans
-- optional API-key protection for API and dashboards
-- executive HTML dashboard for non-coders
-- API endpoints for technical users and automation
+- PostgreSQL-first configuration with SQLite fallback only for local/test use
+- user accounts, memberships and bearer tokens instead of a single global API key
+- tenant-scoped access control across environments, runs, plans and connectors
+- DB-backed queued analysis runs with a dedicated worker entrypoint at `app/worker.py`
+- versioned environment snapshots for each analysis run
+- connector tokens and telemetry ingestion endpoints
+- audit events for auth, onboarding, snapshots, runs and remediation updates
+- tenant settings and quotas for environments, connectors and daily analysis runs
+- remediation workflow fields like status, owner, approvals and ticket URL
+- request metrics and request IDs for basic platform observability
+- updated dashboards and API contracts around the new architecture
 
-## What changed in this refactor
+## Core architecture
 
-The project was upgraded in the areas that matter most for credibility:
+### Control plane
 
-- the graph builder no longer mixes unrelated RBAC resources and verbs into fake paths
-- permission scope now follows binding scope more closely, which is much closer to real Kubernetes behavior
-- analysis results now include explainable attack stories and executive summaries
-- remediation plans store rich action metadata instead of opaque IDs
-- onboarding validates parents, duplicate data and manifest path boundaries
-- the app can be protected with `EVONHI_API_KEY`
-- a visual dashboard was added at `/dashboard/runs/{run_id}` plus a control-center home page at `/`
-- tests now cover semantic correctness and report generation, not just happy-path existence
+FastAPI handles:
 
-## Honest scope
+- authentication
+- tenant and workspace management
+- environment onboarding
+- connector provisioning
+- queued analysis orchestration
+- remediation workflow
+- executive and technical dashboards
 
-The current engine is strong enough to be useful as a serious demo and internal planning tool, but it is still not pretending to solve every Kubernetes attack vector.
+### Compute plane
 
-Modeled well right now:
+Heavy analysis no longer needs to live in the HTTP path.
+
+- API requests enqueue analysis runs
+- a worker process claims queued runs and executes graph building plus optimization
+- each run references a versioned environment snapshot and optional telemetry snapshot
+
+Run the worker with:
+
+```bash
+python -m app.worker
+```
+
+For local development only, you can also set:
+
+```bash
+export EVONHI_RUN_EMBEDDED_WORKER=true
+```
+
+### Runtime telemetry plane
+
+Instead of relying only on static manifests, EvoNHI can ingest runtime context through tenant-scoped connectors.
+
+Supported in this codebase:
+
+- connector provisioning with one-time token return
+- telemetry snapshot ingestion
+- runtime-aware operational-impact modifiers during remediation planning
+
+The ingestion model is push-based right now:
+
+- cluster-side connector or agent sends telemetry to `POST /api/v1/connector-ingest/telemetry`
+
+## Data model highlights
+
+The platform now tracks:
+
+- tenants
+- users
+- memberships
+- access tokens
+- workspaces
+- environments
+- crown jewels
+- cluster connectors
+- telemetry snapshots
+- environment snapshots
+- analysis runs
+- remediation plans
+- audit events
+
+## Security posture improvements
+
+- no more single global `EVONHI_API_KEY`
+- per-user bearer tokens with expiration and revocation fields
+- per-connector tokens for ingestion
+- access checks enforced by tenant membership and role
+- audit events for critical actions
+- tenant quotas and feature flags
+
+Current tenant roles:
+
+- `viewer`
+- `analyst`
+- `editor`
+- `admin`
+- `owner`
+
+## Analysis model
+
+The engine still focuses on:
 
 - public workload entry points
-- service-account token inheritance
+- service account token inheritance
 - RBAC secret reads
 - mounted secret exposure
-- workload mutation pivots via RBAC
+- workload mutation pivots
 
-Not fully modeled yet:
+What improved:
 
-- real cluster connectors
-- runtime telemetry
-- user auth and RBAC beyond API-key protection
-- asynchronous workers
-- billing, notifications and audit trails
-- full network-policy semantics
-
-## Architecture
-
-### API layer
-
-FastAPI exposes resource management, analysis execution and executive summary endpoints.
-
-### Application layer
-
-Service modules validate onboarding, orchestrate analyses and build audience-specific summaries.
-
-### Analysis engine
-
-The engine:
-
-1. loads Kubernetes manifests
-2. builds an attack graph with scoped permissions
-3. finds bounded high-signal paths to crown jewels
-4. generates remediation actions
-5. optimizes plans under budget and operational impact constraints
-
-### Presentation layer
-
-A server-rendered HTML dashboard translates technical findings into a business-readable story.
-
-### Persistence layer
-
-SQLAlchemy stores tenants, workspaces, environments, crown jewels, analysis runs and remediation plans in SQLite by default.
-
-## Tech stack
-
-- Python
-- FastAPI
-- SQLAlchemy
-- SQLite
-- Pydantic v2
-- NetworkX
-- PyYAML
-- Uvicorn
-
-## Repository structure
-
-```text
-app/
-  api/          # REST endpoints
-  services/     # onboarding, reporting, analysis orchestration
-  engine/       # graph, path, remediation and optimization logic
-  domain/       # analysis dataclasses
-  ui/           # HTML dashboard rendering
-  main.py       # FastAPI entrypoint
-
-data/demo/
-  manifests/    # reproducible Kubernetes-like demo bundle
-
-tests/
-  test_engine.py
-  test_engine_semantics.py
-  test_onboarding_analysis.py
-```
+- each analysis run is reproducible from a stored snapshot
+- operational impact can now be adjusted with runtime telemetry confidence
+- results are queued and can be processed by dedicated workers
 
 ## Quick start
 
@@ -128,13 +138,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Optional: protect the API and dashboards
+### 3. Configure PostgreSQL
 
 ```bash
-export EVONHI_API_KEY="change-me"
+export EVONHI_DATABASE_URL="postgresql+psycopg://evonhi:evonhi@localhost:5432/evonhi"
 ```
 
-When enabled, use either the `X-API-Key` header or `?api_key=...` in dashboard URLs.
+In local tests and fallback development, the app can still drop to SQLite if the PostgreSQL driver is unavailable and `EVONHI_ENV` is not `production`.
 
 ### 4. Seed demo data
 
@@ -142,44 +152,120 @@ When enabled, use either the `X-API-Key` header or `?api_key=...` in dashboard U
 python scripts/seed_demo.py
 ```
 
-That script creates a demo tenant, runs an analysis and prints the dashboard URL.
+That script bootstraps:
 
-### 5. Run the API
+- a tenant
+- an owner user
+- a workspace
+- an environment
+- a crown jewel
+- a telemetry snapshot
+- a processed analysis run
+
+### 5. Run the API and worker
 
 ```bash
 uvicorn app.main:app --reload
+python -m app.worker
 ```
 
-### 6. Open the product views
+### 6. Authenticate
 
-- Control center: `http://127.0.0.1:8000/`
-- Swagger docs: `http://127.0.0.1:8000/docs`
-- Dashboard example: `http://127.0.0.1:8000/dashboard/runs/1`
+Use the seeded credentials:
 
-## Suggested demo flow
+- email: `owner@acme.test`
+- password: `super-secure-pass`
 
-1. Create a tenant.
-2. Create a workspace.
-3. Register an environment with a manifest bundle under the configured manifest root.
-4. Add one or more crown jewels.
-5. Trigger an analysis run.
-6. Review the API output or open the executive dashboard.
+Login:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner@acme.test","password":"super-secure-pass"}'
+```
+
+Then use:
+
+- `Authorization: Bearer <token>`
+- or `?access_token=<token>` for HTML dashboards
 
 ## Important API endpoints
 
+### Auth
+
+- `POST /api/v1/auth/bootstrap`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/me`
+
+### Tenant and onboarding
+
+- `GET /api/v1/tenants`
 - `POST /api/v1/tenants`
+- `PATCH /api/v1/tenants/{tenant_id}/settings`
+- `GET /api/v1/tenants/{tenant_id}/workspaces`
 - `POST /api/v1/tenants/{tenant_id}/workspaces`
+- `GET /api/v1/workspaces/{workspace_id}/environments`
 - `POST /api/v1/workspaces/{workspace_id}/environments`
 - `POST /api/v1/environments/{environment_id}/crown-jewels`
+
+### Connectors and telemetry
+
+- `GET /api/v1/environments/{environment_id}/connectors`
+- `POST /api/v1/environments/{environment_id}/connectors`
+- `GET /api/v1/environments/{environment_id}/telemetry-snapshots`
+- `POST /api/v1/environments/{environment_id}/telemetry-snapshots`
+- `POST /api/v1/connector-ingest/telemetry`
+
+### Analysis
+
+- `GET /api/v1/environments/{environment_id}/analysis-runs`
 - `POST /api/v1/environments/{environment_id}/analysis-runs`
+- `POST /api/v1/environments/{environment_id}/analysis-runs/execute-inline`
+- `POST /api/v1/analysis-runs/{run_id}/execute-now`
 - `GET /api/v1/analysis-runs/{run_id}`
 - `GET /api/v1/analysis-runs/{run_id}/executive-summary`
+
+### Workflow and operations
+
+- `GET /api/v1/analysis-runs/{run_id}/remediation-plans`
+- `PATCH /api/v1/remediation-plans/{plan_id}`
+- `GET /api/v1/tenants/{tenant_id}/audit-events`
 - `GET /api/v1/tenants/{tenant_id}/dashboard`
+- `GET /api/v1/platform/metrics`
 
-## Example product promise
+## Dashboard experience
 
-EvoNHI is not trying to be a generic scanner or a full SOC.
+HTML views remain available for non-coders:
 
-Its value proposition is narrower and stronger:
+- `/` control center
+- `/dashboard/runs/{run_id}` executive run dashboard
 
-**turn non-human identity exposure into prioritized, explainable remediation decisions that both engineers and non-engineers can act on.**
+Open them with:
+
+```text
+http://127.0.0.1:8000/?access_token=<token>
+http://127.0.0.1:8000/dashboard/runs/1?access_token=<token>
+```
+
+## Current limitations
+
+This refactor makes the SaaS much more realistic, but a few enterprise-grade items are still future work:
+
+- full Alembic migrations
+- SSO/SAML/OIDC identity federation
+- distributed queue backend
+- pull-based cloud connectors for EKS/GKE/AKS
+- Prometheus/OpenTelemetry ingestion out of the box
+- compliance packages such as SOC 2 automation
+
+## Bottom line
+
+EvoNHI is no longer shaped like a script that happens to have an API.
+
+It is now shaped like a real control plane:
+
+- identity-aware
+- tenant-aware
+- queue-aware
+- telemetry-aware
+- workflow-aware

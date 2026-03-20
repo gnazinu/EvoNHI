@@ -8,6 +8,22 @@ def _pct(value: float) -> str:
     return f"{round(value * 100)}%"
 
 
+def _session_shell(user_label: str | None, tone: str = "dark") -> str:
+    shell_class = "shell shell-dark" if tone == "dark" else "shell shell-light"
+    user_html = f'<span class="shell-user">{escape(user_label)}</span>' if user_label else ""
+    return (
+        f'<div class="{shell_class}">'
+        '<a class="shell-link" href="/">Control Center</a>'
+        '<div class="shell-actions">'
+        f"{user_html}"
+        '<form method="post" action="/logout">'
+        '<button class="shell-button" type="submit">Sign out</button>'
+        "</form>"
+        "</div>"
+        "</div>"
+    )
+
+
 def _metric_card(label: str, value: Any, tone: str = "default") -> str:
     return (
         f'<article class="metric tone-{escape(tone)}">'
@@ -73,7 +89,7 @@ def _path_card(path: dict[str, Any]) -> str:
     )
 
 
-def render_analysis_dashboard(payload: dict[str, Any]) -> str:
+def render_analysis_dashboard(payload: dict[str, Any], user_label: str | None = None) -> str:
     executive = payload.get("executive", {})
     summary = payload.get("summary", {})
     run = payload.get("run", {})
@@ -125,6 +141,43 @@ def render_analysis_dashboard(payload: dict[str, Any]) -> str:
       width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 28px 0 56px;
+    }}
+    .shell {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }}
+    .shell-dark {{
+      background: rgba(255,255,255,0.05);
+    }}
+    .shell-actions {{
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .shell-link, .shell-user {{
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }}
+    .shell-user {{
+      color: var(--muted);
+    }}
+    .shell-button {{
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.1);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
     }}
     .hero, .panel {{
       background: var(--panel);
@@ -344,6 +397,7 @@ def render_analysis_dashboard(payload: dict[str, Any]) -> str:
 </head>
 <body>
   <main>
+    {_session_shell(user_label, tone="dark")}
     <section class="hero">
       <div class="badge">EvoNHI Executive View</div>
       <div class="hero-grid">
@@ -403,7 +457,7 @@ def render_analysis_dashboard(payload: dict[str, Any]) -> str:
 </html>"""
 
 
-def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffix: str = "") -> str:
+def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffix: str = "", user_label: str | None = None) -> str:
     overview_cards = []
     for card in cards:
         run = card.get("run", {})
@@ -438,9 +492,9 @@ def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffi
     )
 
     auth_note = (
-        "<p class='note'>API key protection is enabled. You can keep browsing these dashboards by passing <code>?api_key=...</code> in the URL or using the <code>X-API-Key</code> header.</p>"
+        "<p class='note'>Authenticated mode is enabled. You can keep browsing these dashboards by passing <code>?access_token=...</code> in the URL or using the <code>Authorization: Bearer ...</code> header.</p>"
         if auth_enabled
-        else "<p class='note'>Local developer mode is active. Set <code>EVONHI_API_KEY</code> to protect the API and dashboards.</p>"
+        else "<p class='note'>Authenticate through the API to obtain a bearer token and open dashboards with <code>?access_token=...</code>.</p>"
     )
 
     return f"""<!DOCTYPE html>
@@ -482,6 +536,42 @@ def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffi
       background: linear-gradient(145deg, rgba(255,255,255,0.76), rgba(255,255,255,0.58));
       border: 1px solid var(--line);
       box-shadow: 0 24px 60px rgba(31,42,46,0.08);
+    }}
+    .shell {{
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.66);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 40px rgba(31,42,46,0.08);
+    }}
+    .shell-actions {{
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+    .shell-link {{
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 600;
+    }}
+    .shell-user {{
+      color: var(--muted);
+      font-size: 0.95rem;
+    }}
+    .shell-button {{
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
     }}
     h1, h2, h3 {{ font-family: var(--headline-font); margin: 0; letter-spacing: -0.02em; }}
     h1 {{ font-size: clamp(2.2rem, 4vw, 4rem); max-width: 12ch; }}
@@ -544,6 +634,7 @@ def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffi
 </head>
 <body>
   <main>
+    {_session_shell(user_label, tone="light") if user_label else ""}
     <section class="hero">
       <h1>EvoNHI Control Center</h1>
       <p>Security analytics for Kubernetes non-human identities, now with an executive lens that explains what is exposed, why it matters and which remediation plan gives the best trade-off.</p>
@@ -552,6 +643,187 @@ def render_home_page(cards: list[dict[str, Any]], auth_enabled: bool, link_suffi
     <div class="grid">
       {''.join(overview_cards) or empty_state}
     </div>
+  </main>
+</body>
+</html>"""
+
+
+def render_login_page(next_path: str = "/", error_message: str | None = None, email_value: str = "") -> str:
+    error_html = (
+        f'<div class="error-banner">{escape(error_message)}</div>'
+        if error_message
+        else '<p class="helper">Use your workspace credentials to open the control center and executive dashboards.</p>'
+    )
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EvoNHI Sign In</title>
+  <style>
+    :root {{
+      --bg: #091014;
+      --panel: rgba(255,255,255,0.08);
+      --line: rgba(255,255,255,0.12);
+      --text: #eef6f3;
+      --muted: #b8c7c2;
+      --accent: #4ec6a6;
+      --danger: #ff8d7a;
+      --headline-font: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      --body-font: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      color: var(--text);
+      font-family: var(--body-font);
+      background:
+        radial-gradient(circle at top left, rgba(78,198,166,0.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(255,141,122,0.16), transparent 28%),
+        linear-gradient(155deg, #071015 0%, #0b1b20 100%);
+    }}
+    .shell {{
+      width: min(960px, 100%);
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      border-radius: 30px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      box-shadow: 0 28px 80px rgba(0,0,0,0.34);
+    }}
+    .brand, .panel {{
+      padding: 34px;
+    }}
+    .brand {{
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+    }}
+    .eyebrow {{
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }}
+    h1, h2 {{
+      margin: 0;
+      font-family: var(--headline-font);
+      letter-spacing: -0.02em;
+    }}
+    h1 {{
+      font-size: clamp(2.2rem, 4vw, 3.8rem);
+      max-width: 9ch;
+      margin-bottom: 18px;
+    }}
+    p {{
+      line-height: 1.6;
+      color: var(--muted);
+    }}
+    ul {{
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }}
+    .panel {{
+      background: rgba(8,16,20,0.78);
+    }}
+    form {{
+      display: grid;
+      gap: 16px;
+      margin-top: 18px;
+    }}
+    label {{
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }}
+    input {{
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font: inherit;
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+    }}
+    input:focus {{
+      outline: 2px solid rgba(78,198,166,0.45);
+      outline-offset: 2px;
+    }}
+    button {{
+      border: 0;
+      border-radius: 16px;
+      padding: 14px 18px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      color: #05201b;
+      background: linear-gradient(135deg, #4ec6a6, #89e3c9);
+    }}
+    .helper {{
+      margin: 0;
+    }}
+    .error-banner {{
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,141,122,0.12);
+      border: 1px solid rgba(255,141,122,0.28);
+      color: #ffd0c8;
+    }}
+    .note {{
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }}
+    code {{
+      color: var(--text);
+    }}
+    @media (max-width: 860px) {{
+      .shell {{
+        grid-template-columns: 1fr;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="brand">
+      <div class="eyebrow">EvoNHI Enterprise</div>
+      <h1>Security decisions for human and executive eyes.</h1>
+      <p>Sign in to access the control center, review queued analyses, and open visual dashboards without juggling bearer tokens in the URL.</p>
+      <ul>
+        <li>Review tenant-scoped analysis runs and remediation plans.</li>
+        <li>Use the same session across the control center and executive dashboard.</li>
+        <li>Keep API token workflows available for automation and integrations.</li>
+      </ul>
+    </section>
+    <section class="panel">
+      <h2>Sign In</h2>
+      {error_html}
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="{escape(next_path)}">
+        <label>
+          Email
+          <input type="email" name="email" value="{escape(email_value)}" autocomplete="username" required>
+        </label>
+        <label>
+          Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Open Control Center</button>
+      </form>
+      <p class="note">For the seeded demo, use <code>owner@acme.test</code> and <code>super-secure-pass</code>.</p>
+    </section>
   </main>
 </body>
 </html>"""
