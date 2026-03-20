@@ -352,9 +352,4 @@ The goal is to help teams reduce the most dangerous attack paths in the smartest
 This repository is currently an **MVP / research-to-product foundation**.
 It is meant to validate the product direction, the analysis logic, and the optimization model before moving toward a more complete SaaS platform.
 
----
-
-## License
-
-Choose the license that fits your distribution strategy.
-For now, this section can be replaced with your preferred license once the repo is published.
+-*gnazinu*
